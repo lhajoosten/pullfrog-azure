@@ -1,0 +1,13 @@
+version: "3"
+
+tasks:
+  devex:status:
+    desc: Confirm base DevEx metadata exists; stack profile tasks are added by later setup runs.
+    cmds:
+      - test -f .codex/devex.toml
+  check:
+    desc: Verify the base DevEx contract; stack profile tasks are added by later setup runs.
+    deps: [devex:status]
+  ci:
+    desc: Run the base DevEx CI contract; stack profile tasks are added by later setup runs.
+    deps: [check]
