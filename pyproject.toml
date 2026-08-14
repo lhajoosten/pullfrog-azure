@@ -34,5 +34,6 @@ select = ["E", "F", "I", "UP", "B", "ASYNC", "RUF"]
 [tool.mypy]
 python_version = "3.13"
 strict = true
+plugins = ["pydantic.mypy"]
 packages = ["pullfrog_azure_api"]
 mypy_path = ["apps/control-plane/src"]

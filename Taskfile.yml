@@ -35,9 +35,41 @@ tasks:
       - uv run mypy
 
   test:backend:
-    desc: Run backend tests, optionally narrowed with CLI_ARGS.
+    desc: Run non-integration backend tests, optionally narrowed with CLI_ARGS.
+    env:
+      PULLFROG_DATABASE_URL: '{{default "postgresql+asyncpg://pullfrog:pullfrog@127.0.0.1:55432/pullfrog" .PULLFROG_DATABASE_URL}}'
     cmds:
       - uv run pytest -m "not integration" {{.CLI_ARGS}}
+
+  infra:up:
+    desc: Start the local PostgreSQL dependency.
+    cmds:
+      - docker compose up -d --wait postgres
+
+  infra:down:
+    desc: Stop local dependencies without deleting volumes.
+    cmds:
+      - docker compose down
+
+  db:upgrade:
+    desc: Upgrade the configured database to the latest revision.
+    env:
+      PULLFROG_DATABASE_URL: '{{default "postgresql+asyncpg://pullfrog:pullfrog@127.0.0.1:55432/pullfrog" .PULLFROG_DATABASE_URL}}'
+    cmds:
+      - uv run alembic upgrade head
+
+  test:db:
+    desc: Run PostgreSQL-backed migration tests.
+    env:
+      PULLFROG_DATABASE_URL: '{{default "postgresql+asyncpg://pullfrog:pullfrog@127.0.0.1:55432/pullfrog" .PULLFROG_DATABASE_URL}}'
+    cmds:
+      - uv run pytest -m integration apps/control-plane/tests/integration -q
+
+  test:db:local:
+    desc: Start PostgreSQL and run all integration tests.
+    deps: [infra:up]
+    cmds:
+      - task: test:db
 
   check:
     desc: Run the complete configured repository check contract.
