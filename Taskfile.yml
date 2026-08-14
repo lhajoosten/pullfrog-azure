@@ -34,9 +34,14 @@ tasks:
     cmds:
       - uv run mypy
 
+  test:backend:
+    desc: Run backend tests, optionally narrowed with CLI_ARGS.
+    cmds:
+      - uv run pytest -m "not integration" {{.CLI_ARGS}}
+
   check:
     desc: Run the complete configured repository check contract.
-    deps: [devex:status, format:check, lint, typecheck]
+    deps: [devex:status, format:check, lint, typecheck, test:backend]
 
   ci:
     desc: Install locked dependencies and run all checks.
