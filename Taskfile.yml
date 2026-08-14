@@ -2,12 +2,44 @@ version: "3"
 
 tasks:
   devex:status:
-    desc: Confirm base DevEx metadata exists; stack profile tasks are added by later setup runs.
+    desc: Confirm base DevEx metadata exists.
     cmds:
       - test -f .codex/devex.toml
+
+  bootstrap:
+    desc: Install locked Python and TypeScript dependencies.
+    cmds:
+      - uv sync --all-packages
+      - pnpm install
+
+  bootstrap:locked:
+    desc: Install dependencies without changing lockfiles.
+    cmds:
+      - uv sync --all-packages --frozen
+      - pnpm install --frozen-lockfile
+
+  format:check:
+    desc: Check repository formatting.
+    cmds:
+      - uv run ruff format --check apps/control-plane
+      - pnpm format:check
+
+  lint:
+    desc: Run static lint checks.
+    cmds:
+      - uv run ruff check apps/control-plane
+
+  typecheck:
+    desc: Run strict type checks.
+    cmds:
+      - uv run mypy
+
   check:
-    desc: Verify the base DevEx contract; stack profile tasks are added by later setup runs.
-    deps: [devex:status]
+    desc: Run the complete configured repository check contract.
+    deps: [devex:status, format:check, lint, typecheck]
+
   ci:
-    desc: Run the base DevEx CI contract; stack profile tasks are added by later setup runs.
-    deps: [check]
+    desc: Install locked dependencies and run all checks.
+    cmds:
+      - task: bootstrap:locked
+      - task: check
