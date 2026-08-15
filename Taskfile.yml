@@ -39,25 +39,50 @@ tasks:
     cmds:
       - pnpm --filter @pullfrog-azure/admin format:check
 
+  format:runtime:
+    desc: Check runtime formatting.
+    cmds:
+      - pnpm --filter @pullfrog-azure/runtime format:check
+
   lint:frontend:
     desc: Run frontend lint checks.
     cmds:
       - pnpm --filter @pullfrog-azure/admin lint
+
+  lint:runtime:
+    desc: Run runtime lint checks.
+    cmds:
+      - pnpm --filter @pullfrog-azure/runtime lint
 
   typecheck:frontend:
     desc: Run frontend strict type checks.
     cmds:
       - pnpm --filter @pullfrog-azure/admin typecheck
 
+  typecheck:runtime:
+    desc: Run runtime strict type checks.
+    cmds:
+      - pnpm --filter @pullfrog-azure/runtime typecheck
+
   test:frontend:
     desc: Run frontend tests, optionally narrowed with CLI_ARGS.
     cmds:
       - pnpm --filter @pullfrog-azure/admin test -- {{.CLI_ARGS}}
 
+  test:runtime:
+    desc: Run runtime tests, optionally narrowed with CLI_ARGS.
+    cmds:
+      - pnpm --filter @pullfrog-azure/runtime test -- {{.CLI_ARGS}}
+
   build:frontend:
     desc: Build the frontend.
     cmds:
       - pnpm --filter @pullfrog-azure/admin build
+
+  build:runtime:
+    desc: Build the runtime CLI.
+    cmds:
+      - pnpm --filter @pullfrog-azure/runtime build
 
   test:backend:
     desc: Run non-integration backend tests, optionally narrowed with CLI_ARGS.
@@ -118,13 +143,18 @@ tasks:
         devex:status,
         format:check,
         format:frontend,
+        format:runtime,
         lint,
         lint:frontend,
+        lint:runtime,
         typecheck,
         typecheck:frontend,
+        typecheck:runtime,
         test:backend,
         test:frontend,
+        test:runtime,
         build:frontend,
+        build:runtime,
         api:check,
       ]
 

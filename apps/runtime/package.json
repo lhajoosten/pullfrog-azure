@@ -1,0 +1,26 @@
+{
+  "name": "@pullfrog-azure/runtime",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "pullfrog-azure-runtime": "./dist/bin.js"
+  },
+  "scripts": {
+    "build": "tsup src/bin.ts --format esm --clean",
+    "format:check": "prettier --check package.json src tsconfig.json",
+    "lint": "oxlint src",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "oxlint": "^1.0.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.9.0",
+    "vitest": "^4.0.0"
+  }
+}
