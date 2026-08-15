@@ -71,9 +71,24 @@ tasks:
     cmds:
       - task: test:db
 
+  api:generate:
+    desc: Export OpenAPI and regenerate TypeScript API types.
+    env:
+      PULLFROG_DATABASE_URL: '{{default "postgresql+asyncpg://pullfrog:pullfrog@127.0.0.1:55432/pullfrog" .PULLFROG_DATABASE_URL}}'
+    cmds:
+      - uv run python apps/control-plane/scripts/export_openapi.py
+      - pnpm --filter @pullfrog-azure/api-client generate
+
+  api:check:
+    desc: Fail when committed API artifacts differ from generated output.
+    cmds:
+      - task: api:generate
+      - git diff --exit-code -- packages/api-client/openapi.json packages/api-client/src/schema.d.ts
+      - pnpm --filter @pullfrog-azure/api-client typecheck
+
   check:
     desc: Run the complete configured repository check contract.
-    deps: [devex:status, format:check, lint, typecheck, test:backend]
+    deps: [devex:status, format:check, lint, typecheck, test:backend, api:check]
 
   ci:
     desc: Install locked dependencies and run all checks.
