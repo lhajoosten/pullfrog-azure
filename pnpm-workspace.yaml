@@ -2,3 +2,5 @@ packages:
   - "apps/admin"
   - "apps/runtime"
   - "packages/*"
+allowBuilds:
+  esbuild: true

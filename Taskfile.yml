@@ -34,6 +34,31 @@ tasks:
     cmds:
       - uv run mypy
 
+  format:frontend:
+    desc: Check frontend formatting.
+    cmds:
+      - pnpm --filter @pullfrog-azure/admin format:check
+
+  lint:frontend:
+    desc: Run frontend lint checks.
+    cmds:
+      - pnpm --filter @pullfrog-azure/admin lint
+
+  typecheck:frontend:
+    desc: Run frontend strict type checks.
+    cmds:
+      - pnpm --filter @pullfrog-azure/admin typecheck
+
+  test:frontend:
+    desc: Run frontend tests, optionally narrowed with CLI_ARGS.
+    cmds:
+      - pnpm --filter @pullfrog-azure/admin test -- {{.CLI_ARGS}}
+
+  build:frontend:
+    desc: Build the frontend.
+    cmds:
+      - pnpm --filter @pullfrog-azure/admin build
+
   test:backend:
     desc: Run non-integration backend tests, optionally narrowed with CLI_ARGS.
     env:
@@ -88,7 +113,20 @@ tasks:
 
   check:
     desc: Run the complete configured repository check contract.
-    deps: [devex:status, format:check, lint, typecheck, test:backend, api:check]
+    deps:
+      [
+        devex:status,
+        format:check,
+        format:frontend,
+        lint,
+        lint:frontend,
+        typecheck,
+        typecheck:frontend,
+        test:backend,
+        test:frontend,
+        build:frontend,
+        api:check,
+      ]
 
   ci:
     desc: Install locked dependencies and run all checks.
