@@ -1,0 +1,178 @@
+version: "3"
+
+tasks:
+  devex:status:
+    desc: Confirm base DevEx metadata exists.
+    cmds:
+      - test -f .codex/devex.toml
+
+  bootstrap:
+    desc: Install locked Python and TypeScript dependencies.
+    cmds:
+      - uv sync --all-packages
+      - pnpm install
+
+  bootstrap:locked:
+    desc: Install dependencies without changing lockfiles.
+    cmds:
+      - uv sync --all-packages --frozen
+      - pnpm install --frozen-lockfile
+
+  dev:backend:
+    desc: Run the control plane with reload enabled.
+    env:
+      PULLFROG_DATABASE_URL: '{{default "postgresql+asyncpg://pullfrog:pullfrog@127.0.0.1:55432/pullfrog" .PULLFROG_DATABASE_URL}}'
+    cmds:
+      - uv run uvicorn pullfrog_azure_api.main:app --reload --port 8000
+
+  dev:frontend:
+    desc: Run the admin UI development server.
+    cmds:
+      - pnpm --filter @pullfrog-azure/admin dev
+
+  format:check:
+    desc: Check repository formatting.
+    cmds:
+      - uv run ruff format --check apps/control-plane
+      - pnpm format:check
+
+  lint:
+    desc: Run static lint checks.
+    cmds:
+      - uv run ruff check apps/control-plane
+
+  typecheck:
+    desc: Run strict type checks.
+    cmds:
+      - uv run mypy
+
+  format:frontend:
+    desc: Check frontend formatting.
+    cmds:
+      - pnpm --filter @pullfrog-azure/admin format:check
+
+  format:runtime:
+    desc: Check runtime formatting.
+    cmds:
+      - pnpm --filter @pullfrog-azure/runtime format:check
+
+  lint:frontend:
+    desc: Run frontend lint checks.
+    cmds:
+      - pnpm --filter @pullfrog-azure/admin lint
+
+  lint:runtime:
+    desc: Run runtime lint checks.
+    cmds:
+      - pnpm --filter @pullfrog-azure/runtime lint
+
+  typecheck:frontend:
+    desc: Run frontend strict type checks.
+    cmds:
+      - pnpm --filter @pullfrog-azure/admin typecheck
+
+  typecheck:runtime:
+    desc: Run runtime strict type checks.
+    cmds:
+      - pnpm --filter @pullfrog-azure/runtime typecheck
+
+  test:frontend:
+    desc: Run frontend tests, optionally narrowed with CLI_ARGS.
+    cmds:
+      - pnpm --filter @pullfrog-azure/admin test -- {{.CLI_ARGS}}
+
+  test:runtime:
+    desc: Run runtime tests, optionally narrowed with CLI_ARGS.
+    cmds:
+      - pnpm --filter @pullfrog-azure/runtime test -- {{.CLI_ARGS}}
+
+  build:frontend:
+    desc: Build the frontend.
+    cmds:
+      - pnpm --filter @pullfrog-azure/admin build
+
+  build:runtime:
+    desc: Build the runtime CLI.
+    cmds:
+      - pnpm --filter @pullfrog-azure/runtime build
+
+  test:backend:
+    desc: Run non-integration backend tests, optionally narrowed with CLI_ARGS.
+    env:
+      PULLFROG_DATABASE_URL: '{{default "postgresql+asyncpg://pullfrog:pullfrog@127.0.0.1:55432/pullfrog" .PULLFROG_DATABASE_URL}}'
+    cmds:
+      - uv run pytest -m "not integration" {{.CLI_ARGS}}
+
+  infra:up:
+    desc: Start the local PostgreSQL dependency.
+    cmds:
+      - docker compose up -d --wait postgres
+
+  infra:down:
+    desc: Stop local dependencies without deleting volumes.
+    cmds:
+      - docker compose down
+
+  db:upgrade:
+    desc: Upgrade the configured database to the latest revision.
+    env:
+      PULLFROG_DATABASE_URL: '{{default "postgresql+asyncpg://pullfrog:pullfrog@127.0.0.1:55432/pullfrog" .PULLFROG_DATABASE_URL}}'
+    cmds:
+      - uv run alembic upgrade head
+
+  test:db:
+    desc: Run PostgreSQL-backed migration tests.
+    env:
+      PULLFROG_DATABASE_URL: '{{default "postgresql+asyncpg://pullfrog:pullfrog@127.0.0.1:55432/pullfrog" .PULLFROG_DATABASE_URL}}'
+    cmds:
+      - uv run pytest -m integration apps/control-plane/tests/integration -q
+
+  test:db:local:
+    desc: Start PostgreSQL and run all integration tests.
+    deps: [infra:up]
+    cmds:
+      - task: test:db
+
+  api:generate:
+    desc: Export OpenAPI and regenerate TypeScript API types.
+    env:
+      PULLFROG_DATABASE_URL: '{{default "postgresql+asyncpg://pullfrog:pullfrog@127.0.0.1:55432/pullfrog" .PULLFROG_DATABASE_URL}}'
+    cmds:
+      - uv run python apps/control-plane/scripts/export_openapi.py
+      - pnpm --filter @pullfrog-azure/api-client generate
+
+  api:check:
+    desc: Fail when committed API artifacts differ from generated output.
+    cmds:
+      - task: api:generate
+      - git diff --exit-code -- packages/api-client/openapi.json packages/api-client/src/schema.d.ts
+      - pnpm --filter @pullfrog-azure/api-client typecheck
+
+  check:
+    desc: Run the complete configured repository check contract.
+    deps:
+      [
+        devex:status,
+        format:check,
+        format:frontend,
+        format:runtime,
+        lint,
+        lint:frontend,
+        lint:runtime,
+        typecheck,
+        typecheck:frontend,
+        typecheck:runtime,
+        test:backend,
+        test:frontend,
+        test:runtime,
+        build:frontend,
+        build:runtime,
+        api:check,
+      ]
+
+  ci:
+    desc: Install locked dependencies and run every repository check.
+    cmds:
+      - task: bootstrap:locked
+      - task: check
+      - task: test:db

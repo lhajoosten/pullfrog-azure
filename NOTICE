@@ -1,0 +1,14 @@
+Pullfrog Azure
+Copyright (c) 2026 Luc Joosten
+
+This project is licensed under the MIT License.
+
+The architecture was informed by the open-source Pullfrog project:
+https://github.com/pullfrog/pullfrog
+
+The reference source revision inspected during design was:
+ad38b15a7f06bc334f76d2fe88354c0eaf08cc06
+
+No upstream Pullfrog source files are included at the time this notice is introduced.
+Any later derived files must be listed here with their upstream revision and must
+retain applicable copyright and license notices.

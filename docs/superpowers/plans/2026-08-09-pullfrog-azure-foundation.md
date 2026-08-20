@@ -1366,6 +1366,7 @@ git commit -m "feat(backend): publish typed api contract"
 - Create: `apps/admin/src/main.tsx`
 - Create: `apps/admin/src/App.tsx`
 - Create: `apps/admin/src/api/useLiveness.ts`
+- Create: `apps/admin/src/api/localApiProxy.test.ts`
 - Create: `apps/admin/src/components/SystemStatus.tsx`
 - Create: `apps/admin/src/components/SystemStatus.test.tsx`
 - Create: `apps/admin/src/pages/OverviewPage.tsx`
@@ -1425,6 +1426,11 @@ import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   plugins: [react()],
+  server: {
+    proxy: {
+      "/api": "http://127.0.0.1:8000",
+    },
+  },
   test: {
     environment: "jsdom",
     setupFiles: ["./src/test/setup.ts"],
@@ -1661,12 +1667,17 @@ Run:
 
 ```bash
 task test:frontend -- src/components/SystemStatus.test.tsx
+task test:frontend -- src/api/localApiProxy.test.ts
 task typecheck:frontend
 task build:frontend
 task check
 ```
 
-Expected: focused component test, strict typecheck, production build, and full checks PASS.
+Expected: focused component and local API proxy tests, strict typecheck, production build,
+and full checks PASS. The proxy test must start a real Vite server and a local HTTP
+control-plane fixture, then assert that `GET /api/v1/health/live` returns the upstream
+JSON response; it prevents removal or misconfiguration of the development-only proxy
+without changing the relative production API base.
 
 - [ ] **Step 7: Commit the admin foundation**
 
@@ -2082,6 +2093,10 @@ Add the missing tasks before documenting them:
 ```
 
 Run each long enough to verify it reaches a ready state without committing generated files.
+With both services ready, `GET http://127.0.0.1:5173/api/v1/health/live` must return
+the control-plane liveness JSON `{"status":"ok"}` through Vite's development-only
+`/api` proxy. This preserves the admin's relative API base and the production
+same-origin model; it does not require CORS middleware.
 
 - [ ] **Step 2: Add contribution rules**
 
