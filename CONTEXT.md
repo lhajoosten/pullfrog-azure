@@ -20,3 +20,11 @@
 - Azure Pipeline executor first.
 - Foundry first, plus direct OpenAI- and Anthropic-compatible endpoints.
 - Public alpha is read-only and excludes Azure Boards.
+
+## Current foundation state
+
+The control-plane, admin UI, runtime configuration, and contract foundation are in place.
+
+## Deferred implementation boundary
+
+Azure DevOps and model integrations are delivered in later implementation plans.

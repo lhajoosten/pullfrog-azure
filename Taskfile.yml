@@ -18,6 +18,18 @@ tasks:
       - uv sync --all-packages --frozen
       - pnpm install --frozen-lockfile
 
+  dev:backend:
+    desc: Run the control plane with reload enabled.
+    env:
+      PULLFROG_DATABASE_URL: '{{default "postgresql+asyncpg://pullfrog:pullfrog@127.0.0.1:55432/pullfrog" .PULLFROG_DATABASE_URL}}'
+    cmds:
+      - uv run uvicorn pullfrog_azure_api.main:app --reload --port 8000
+
+  dev:frontend:
+    desc: Run the admin UI development server.
+    cmds:
+      - pnpm --filter @pullfrog-azure/admin dev
+
   format:check:
     desc: Check repository formatting.
     cmds:
