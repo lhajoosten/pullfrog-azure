@@ -14,4 +14,4 @@ def get_container(request: Request) -> AppContainer:
 def get_readiness_service(request: Request) -> ReadinessService:
     container = get_container(request)
     repository = DatabaseHealthRepository(container.database.sessions)
-    return ReadinessService(repository)
+    return ReadinessService(repository, container.readiness_timeout_seconds)

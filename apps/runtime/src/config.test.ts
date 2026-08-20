@@ -95,6 +95,7 @@ describe("parseRuntimeConfig", () => {
     expect(() =>
       parseRuntimeConfig({
         PULLFROG_CONTROL_PLANE_URL: `https://runtime:${credential}@pullfrog.example.test`,
+        PULLFROG_RUN_ID: "c70a2290-df31-4fb8-81da-140f92c84031",
         PULLFROG_BOOTSTRAP_TOKEN: "a".repeat(48),
       }),
     ).toThrowError("Runtime configuration is invalid");
@@ -102,6 +103,7 @@ describe("parseRuntimeConfig", () => {
     try {
       parseRuntimeConfig({
         PULLFROG_CONTROL_PLANE_URL: `https://runtime:${credential}@pullfrog.example.test`,
+        PULLFROG_RUN_ID: "c70a2290-df31-4fb8-81da-140f92c84031",
         PULLFROG_BOOTSTRAP_TOKEN: "a".repeat(48),
       });
     } catch (error: unknown) {

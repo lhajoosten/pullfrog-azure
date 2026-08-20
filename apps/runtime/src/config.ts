@@ -17,9 +17,16 @@ const runtimeEnvironmentSchema = z.object({
   PULLFROG_CONTROL_PLANE_URL: z
     .string()
     .url()
-    .refine(
-      (value) => URL.canParse(value) && new URL(value).protocol === "https:",
-    ),
+    .refine((value) => {
+      if (!URL.canParse(value)) {
+        return false;
+      }
+
+      const url = new URL(value);
+      return (
+        url.protocol === "https:" && url.username === "" && url.password === ""
+      );
+    }),
   PULLFROG_RUN_ID: z.string().uuid(),
   PULLFROG_BOOTSTRAP_TOKEN: z.string().min(32),
 });
