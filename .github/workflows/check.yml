@@ -1,0 +1,45 @@
+name: Check
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: pullfrog
+          POSTGRES_USER: pullfrog
+          POSTGRES_PASSWORD: pullfrog
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U pullfrog -d pullfrog"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 20
+    env:
+      CI: "true"
+      PULLFROG_DATABASE_URL: postgresql+asyncpg://pullfrog:pullfrog@127.0.0.1:5432/pullfrog
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          python-version: "3.13"
+          enable-cache: true
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 11
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+      - uses: go-task/setup-task@v2
+      - run: task ci

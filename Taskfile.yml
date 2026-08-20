@@ -159,7 +159,8 @@ tasks:
       ]
 
   ci:
-    desc: Install locked dependencies and run all checks.
+    desc: Install locked dependencies and run every repository check.
     cmds:
       - task: bootstrap:locked
       - task: check
+      - task: test:db
