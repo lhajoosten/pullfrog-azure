@@ -23,7 +23,17 @@ def upgrade() -> None:
         "admin_identity",
         sa.Column("id", sa.Uuid(), nullable=False),
         sa.Column("tenant_id", sa.Uuid(), nullable=False),
-        sa.Column("kind", sa.String(length=5), nullable=False),
+        sa.Column(
+            "kind",
+            sa.Enum(
+                "user",
+                "group",
+                native_enum=False,
+                create_constraint=False,
+                length=5,
+            ),
+            nullable=False,
+        ),
         sa.Column("entra_object_id", sa.Uuid(), nullable=False),
         sa.Column(
             "created_at",
@@ -64,7 +74,17 @@ def upgrade() -> None:
         sa.Column("csrf_token_digest", sa.LargeBinary(length=32), nullable=False),
         sa.Column("tenant_id", sa.Uuid(), nullable=False),
         sa.Column("user_object_id", sa.Uuid(), nullable=False),
-        sa.Column("authorizing_kind", sa.String(length=5), nullable=False),
+        sa.Column(
+            "authorizing_kind",
+            sa.Enum(
+                "user",
+                "group",
+                native_enum=False,
+                create_constraint=False,
+                length=5,
+            ),
+            nullable=False,
+        ),
         sa.Column("authorizing_object_id", sa.Uuid(), nullable=False),
         sa.Column("display_name", sa.String(length=256), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
