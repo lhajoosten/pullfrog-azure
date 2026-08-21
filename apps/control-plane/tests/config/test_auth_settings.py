@@ -68,6 +68,29 @@ def test_settings_parse_auth_values_from_environment(
     assert settings.secure_cookies is True
 
 
+@pytest.mark.parametrize("user_object_ids", (None, ""))
+def test_settings_accept_group_only_bootstrap_from_environment(
+    database_url: str,
+    monkeypatch: pytest.MonkeyPatch,
+    user_object_ids: str | None,
+) -> None:
+    monkeypatch.setenv("PULLFROG_DATABASE_URL", database_url)
+    monkeypatch.setenv("PULLFROG_ENTRA_TENANT_ID", str(TENANT_ID))
+    monkeypatch.setenv("PULLFROG_ENTRA_CLIENT_ID", str(CLIENT_ID))
+    monkeypatch.setenv("PULLFROG_ENTRA_CLIENT_SECRET", CLIENT_SECRET)
+    monkeypatch.setenv("PULLFROG_PUBLIC_BASE_URL", "https://pullfrog.example")
+    monkeypatch.setenv("PULLFROG_ADMIN_GROUP_OBJECT_IDS", str(GROUP_ID))
+    if user_object_ids is None:
+        monkeypatch.delenv("PULLFROG_ADMIN_USER_OBJECT_IDS", raising=False)
+    else:
+        monkeypatch.setenv("PULLFROG_ADMIN_USER_OBJECT_IDS", user_object_ids)
+
+    settings = Settings()
+
+    assert settings.admin_user_object_ids == ()
+    assert settings.admin_group_object_ids == (GROUP_ID,)
+
+
 def test_http_origin_is_allowed_only_for_explicit_loopback_development(
     database_url: str,
 ) -> None:
@@ -122,6 +145,18 @@ def test_http_origin_rejects_non_loopback_hosts(
     ),
 )
 def test_public_base_url_must_be_an_origin(
+    database_url: str,
+    public_base_url: str,
+) -> None:
+    with pytest.raises(ValidationError):
+        build_settings(database_url, public_base_url=public_base_url)
+
+
+@pytest.mark.parametrize(
+    "public_base_url",
+    ("https://pullfrog.example?", "https://pullfrog.example#"),
+)
+def test_public_base_url_rejects_empty_query_or_fragment_delimiters(
     database_url: str,
     public_base_url: str,
 ) -> None:

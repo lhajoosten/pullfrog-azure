@@ -20,7 +20,7 @@ class Settings(DatabaseSettings):
     entra_client_id: UUID
     entra_client_secret: SecretStr
     public_base_url: AnyHttpUrl
-    admin_user_object_ids: Annotated[tuple[UUID, ...], NoDecode]
+    admin_user_object_ids: Annotated[tuple[UUID, ...], NoDecode] = ()
     admin_group_object_ids: Annotated[tuple[UUID, ...], NoDecode] = ()
     admin_session_idle_minutes: int = Field(default=30, ge=10, le=1_440)
     admin_session_absolute_hours: int = Field(default=8, ge=1, le=168)
@@ -34,6 +34,8 @@ class Settings(DatabaseSettings):
     def parse_identity_ids(cls, value: object) -> object:
         if not isinstance(value, str):
             return value
+        if not value:
+            return ()
 
         values = tuple(entry.strip() for entry in value.split(","))
         if not values or any(not entry for entry in values):
@@ -53,7 +55,7 @@ class Settings(DatabaseSettings):
         parsed = urlsplit(str(value))
         if parsed.username is not None or parsed.password is not None:
             raise ValueError("public base URL must not include credentials")
-        if parsed.query or parsed.fragment:
+        if value.query is not None or value.fragment is not None:
             raise ValueError("public base URL must not include a query or fragment")
         if parsed.path not in ("", "/"):
             raise ValueError("public base URL must be an origin")
