@@ -4,7 +4,10 @@ from logging.config import fileConfig
 from alembic import context
 from pullfrog_azure_api.config import DatabaseSettings
 from pullfrog_azure_api.db.base import Base
+from pullfrog_azure_api.models.admin_identity import AdminIdentity  # noqa: F401
+from pullfrog_azure_api.models.admin_session import AdminSession  # noqa: F401
 from pullfrog_azure_api.models.deployment_settings import DeploymentSettings  # noqa: F401
+from pullfrog_azure_api.models.oidc_login_attempt import OidcLoginAttempt  # noqa: F401
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
