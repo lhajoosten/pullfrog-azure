@@ -1,5 +1,5 @@
 import pytest
-from pullfrog_azure_api.config import Settings
+from pullfrog_azure_api.config import DatabaseSettings
 from pullfrog_azure_api.db.database import Database
 from pullfrog_azure_api.repositories.database_health import (
     DatabaseHealthRepository,
@@ -10,7 +10,7 @@ from sqlalchemy.engine import make_url
 
 @pytest.mark.integration
 async def test_database_health_repository_pings_postgresql() -> None:
-    database = Database(str(Settings().database_url))
+    database = Database(str(DatabaseSettings().database_url))
     repository = DatabaseHealthRepository(database.sessions)
 
     try:
@@ -21,7 +21,7 @@ async def test_database_health_repository_pings_postgresql() -> None:
 
 @pytest.mark.integration
 async def test_database_health_repository_translates_connection_refusal() -> None:
-    unavailable_url = make_url(str(Settings().database_url)).set(
+    unavailable_url = make_url(str(DatabaseSettings().database_url)).set(
         host="127.0.0.1",
         port=1,
     )

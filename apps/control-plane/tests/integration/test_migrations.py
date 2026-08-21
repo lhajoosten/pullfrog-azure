@@ -3,7 +3,7 @@ import asyncio
 import pytest
 from alembic import command
 from alembic.config import Config
-from pullfrog_azure_api.config import Settings
+from pullfrog_azure_api.config import DatabaseSettings
 from sqlalchemy import inspect
 from sqlalchemy.ext.asyncio import create_async_engine
 
@@ -21,7 +21,7 @@ async def table_names(database_url: str) -> set[str]:
 @pytest.mark.integration
 def test_initial_migration_round_trip() -> None:
     config = Config("alembic.ini")
-    database_url = str(Settings().database_url)
+    database_url = str(DatabaseSettings().database_url)
 
     command.upgrade(config, "head")
     assert "deployment_settings" in asyncio.run(table_names(database_url))
