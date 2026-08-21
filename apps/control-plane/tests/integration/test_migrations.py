@@ -1,5 +1,4 @@
 import asyncio
-import re
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
@@ -12,8 +11,9 @@ from pullfrog_azure_api.config import DatabaseSettings
 from pullfrog_azure_api.db.database import Database
 from pullfrog_azure_api.models.admin_identity import AdminIdentity
 from pullfrog_azure_api.models.admin_session import AdminSession
-from sqlalchemy import DateTime, String, inspect
+from sqlalchemy import DateTime, String, inspect, text
 from sqlalchemy.engine.interfaces import ReflectedColumn
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import create_async_engine
 
 
@@ -75,18 +75,14 @@ async def unique_constraints(
     return {(constraint["name"], tuple(constraint["column_names"])) for constraint in constraints}
 
 
-async def check_constraints(database_url: str, table_name: str) -> dict[str, str]:
+async def check_constraint_names(database_url: str, table_name: str) -> set[str]:
     engine = create_async_engine(database_url)
     async with engine.connect() as connection:
         constraints = await connection.run_sync(
             lambda sync_connection: inspect(sync_connection).get_check_constraints(table_name)
         )
     await engine.dispose()
-    return {
-        constraint["name"]: constraint["sqltext"]
-        for constraint in constraints
-        if constraint["name"] is not None
-    }
+    return {constraint["name"] for constraint in constraints if constraint["name"] is not None}
 
 
 async def indexes(
@@ -102,11 +98,25 @@ async def indexes(
     return {(index["name"], tuple(index["column_names"]), index["unique"]) for index in indexes}
 
 
-def assert_kind_check(sqltext: str, column_name: str) -> None:
-    normalized_sqltext = re.sub(r"\s+", " ", sqltext).lower()
-    assert re.search(rf"\b{re.escape(column_name)}\b", normalized_sqltext) is not None
-    assert set(re.findall(r"'([^']+)'", normalized_sqltext)) == {"user", "group"}
-    assert "any" in normalized_sqltext or " in " in normalized_sqltext
+async def assert_named_check_rejects_raw_insert(
+    database_url: str,
+    constraint_name: str,
+    insert_statement: str,
+) -> None:
+    """Require a named database check to reject a raw insert and always roll back."""
+
+    engine = create_async_engine(database_url)
+    try:
+        async with engine.connect() as connection:
+            transaction = await connection.begin()
+            try:
+                with pytest.raises(IntegrityError, match=constraint_name):
+                    async with connection.begin_nested():
+                        await connection.execute(text(insert_statement))
+            finally:
+                await transaction.rollback()
+    finally:
+        await engine.dispose()
 
 
 @pytest.mark.integration
@@ -182,13 +192,12 @@ def test_admin_identity_session_migration_round_trip() -> None:
         "uq_admin_session_token_digest",
         ("token_digest",),
     ) in asyncio.run(unique_constraints(database_url, "admin_session"))
-    identity_checks = asyncio.run(check_constraints(database_url, "admin_identity"))
-    assert set(identity_checks) == {"ck_admin_identity_kind"}
-    assert_kind_check(identity_checks["ck_admin_identity_kind"], "kind")
-
-    session_checks = asyncio.run(check_constraints(database_url, "admin_session"))
-    assert set(session_checks) == {"ck_admin_session_authorizing_kind"}
-    assert_kind_check(session_checks["ck_admin_session_authorizing_kind"], "authorizing_kind")
+    assert asyncio.run(check_constraint_names(database_url, "admin_identity")) == {
+        "ck_admin_identity_kind"
+    }
+    assert asyncio.run(check_constraint_names(database_url, "admin_session")) == {
+        "ck_admin_session_authorizing_kind"
+    }
 
     assert (
         "ix_oidc_login_attempt_expires_at",
@@ -250,3 +259,56 @@ async def test_identity_kinds_round_trip_as_domain_enums() -> None:
             assert loaded_admin_session.authorizing_kind is AdminIdentityKind.GROUP
     finally:
         await database.close()
+
+
+@pytest.mark.integration
+async def test_identity_kind_checks_reject_non_null_third_values() -> None:
+    config = Config("alembic.ini")
+    database_url = str(DatabaseSettings().database_url)
+    await asyncio.to_thread(command.upgrade, config, "head")
+
+    await assert_named_check_rejects_raw_insert(
+        database_url,
+        "ck_admin_identity_kind",
+        """
+        INSERT INTO admin_identity (id, tenant_id, kind, entra_object_id)
+        VALUES (
+            '11111111-1111-1111-1111-111111111111'::uuid,
+            '22222222-2222-2222-2222-222222222222'::uuid,
+            'other',
+            '33333333-3333-3333-3333-333333333333'::uuid
+        )
+        """,
+    )
+    await assert_named_check_rejects_raw_insert(
+        database_url,
+        "ck_admin_session_authorizing_kind",
+        """
+        INSERT INTO admin_session (
+            id,
+            token_digest,
+            csrf_token_digest,
+            tenant_id,
+            user_object_id,
+            authorizing_kind,
+            authorizing_object_id,
+            created_at,
+            last_seen_at,
+            idle_expires_at,
+            absolute_expires_at
+        )
+        VALUES (
+            '44444444-4444-4444-4444-444444444444'::uuid,
+            decode(repeat('11', 32), 'hex'),
+            decode(repeat('22', 32), 'hex'),
+            '55555555-5555-5555-5555-555555555555'::uuid,
+            '66666666-6666-6666-6666-666666666666'::uuid,
+            'other',
+            '77777777-7777-7777-7777-777777777777'::uuid,
+            now(),
+            now(),
+            now() + INTERVAL '30 minutes',
+            now() + INTERVAL '8 hours'
+        )
+        """,
+    )
