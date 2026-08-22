@@ -92,7 +92,7 @@
 - Produces: `DatabaseSettings`, `Settings`, `AdminIdentityKind`, `AdminIdentityRef`, `AuthErrorCode`, `AuthenticationError`, `ValidatedOidcClaims`, `OidcAuthorization`, `OidcProvider`, `validate_return_to()`, `select_authorizer()`, `new_opaque_token()`, `digest_token()`, and `csrf_matches()`.
 - Consumes: only the existing Pydantic Settings and Python standard library.
 
-- [ ] **Step 1: Write configuration tests that fail on the current `Settings`**
+- [x] **Step 1: Write configuration tests that fail on the current `Settings`**
 
 Add tests that construct settings explicitly and through environment values:
 
@@ -127,7 +127,7 @@ def test_http_origin_is_allowed_only_for_explicit_loopback_development(
 
 Also assert rejection of invalid UUID lists, credentials/query/fragment in the public URL, non-loopback HTTP, idle values outside 10–1,440 minutes, absolute values outside 1–168 hours, absolute expiry not longer than idle expiry, and attempt values outside 1–10 minutes. Assert `repr(settings)` does not contain the client secret.
 
-- [ ] **Step 2: Run the focused settings test and record RED**
+- [x] **Step 2: Run the focused settings test and record RED**
 
 Run:
 
@@ -137,7 +137,7 @@ task test:backend -- apps/control-plane/tests/config/test_auth_settings.py -q
 
 Expected: collection fails because the new settings fields and `DatabaseSettings` do not exist.
 
-- [ ] **Step 3: Add domain, redirect, authorization, and token policy tests**
+- [x] **Step 3: Add domain, redirect, authorization, and token policy tests**
 
 Use immutable UUID fixtures and assert these exact decisions:
 
@@ -169,7 +169,7 @@ def test_select_authorizer_prefers_user_then_sorted_group() -> None:
 
 Assert `/` and `/settings?tab=auth` pass, decoded network paths and backslashes fail, email/UPN inputs are absent from the authorization interface, tokens have at least 43 URL-safe characters, token digests are 32 bytes, equal CSRF values pass, and missing/mismatched values fail.
 
-- [ ] **Step 4: Run the focused policy tests and record RED**
+- [x] **Step 4: Run the focused policy tests and record RED**
 
 Run:
 
@@ -179,7 +179,7 @@ task test:backend -- apps/control-plane/tests/auth/test_policy.py apps/control-p
 
 Expected: collection fails because the `auth` modules do not exist.
 
-- [ ] **Step 5: Implement the minimal typed configuration and pure policy**
+- [x] **Step 5: Implement the minimal typed configuration and pure policy**
 
 Split migration-only database configuration from application startup configuration:
 
@@ -280,7 +280,7 @@ class OidcProvider(Protocol):
 
 Use `DatabaseSettings` in Alembic and database-only integration tests. Add deterministic non-secret auth environment values only to `test:backend` and `api:generate` Taskfile targets so `create_app()` still fails closed in actual startup when configuration is absent.
 
-- [ ] **Step 6: Run focused GREEN and static checks**
+- [x] **Step 6: Run focused GREEN and static checks**
 
 Run:
 
@@ -292,7 +292,7 @@ task typecheck
 
 Expected: all focused tests, Ruff, and mypy pass.
 
-- [ ] **Step 7: Commit Task 1**
+- [x] **Step 7: Commit Task 1**
 
 ```sh
 git add Taskfile.yml apps/control-plane/src/pullfrog_azure_api/config.py apps/control-plane/src/pullfrog_azure_api/auth apps/control-plane/alembic/env.py apps/control-plane/tests/config apps/control-plane/tests/auth apps/control-plane/tests/integration/test_database_health_repository.py apps/control-plane/tests/integration/test_migrations.py
@@ -313,7 +313,7 @@ git commit -m "feat(backend): validate admin identity configuration"
 - Produces: ORM models `AdminIdentity`, `OidcLoginAttempt`, and `AdminSession` with native UUIDs, UTC timestamps, 32-byte digests, JSONB flow state, unique constraints, and identity-kind checks.
 - Consumes: `Base` and `AdminIdentityKind` from Task 1.
 
-- [ ] **Step 1: Extend the migration round-trip test before adding models**
+- [x] **Step 1: Extend the migration round-trip test before adding models**
 
 After upgrading to head, inspect exact table and column names:
 
@@ -338,7 +338,7 @@ command.upgrade(config, "head")
 
 Add inspector assertions for the unique `(tenant_id, kind, entra_object_id)` identity tuple and unique session/attempt digests.
 
-- [ ] **Step 2: Run the real PostgreSQL gate and record RED**
+- [x] **Step 2: Run the real PostgreSQL gate and record RED**
 
 Run:
 
@@ -348,7 +348,7 @@ task test:db:local
 
 Expected: the migration test fails because the three phase-1 tables do not exist.
 
-- [ ] **Step 3: Implement typed models and the Alembic revision**
+- [x] **Step 3: Implement typed models and the Alembic revision**
 
 Use these exact database shapes:
 
@@ -387,7 +387,7 @@ admin_session
 
 Use PostgreSQL `JSONB`, `LargeBinary(32)`, `Uuid`, timezone-aware `DateTime`, explicit check/unique constraint names, and indexes that support digest lookup and expired-attempt cleanup. Import all three models in Alembic `env.py`. Downgrade in reverse dependency order: `admin_session`, `oidc_login_attempt`, `admin_identity`.
 
-- [ ] **Step 4: Run migration GREEN, then stop infrastructure**
+- [x] **Step 4: Run migration GREEN, then stop infrastructure**
 
 Run:
 
@@ -398,7 +398,7 @@ task infra:down
 
 Expected: upgrade, downgrade to the foundation revision, and re-upgrade pass; PostgreSQL stops without deleting volumes.
 
-- [ ] **Step 5: Commit Task 2**
+- [x] **Step 5: Commit Task 2**
 
 ```sh
 git add apps/control-plane/src/pullfrog_azure_api/models apps/control-plane/alembic apps/control-plane/tests/integration/test_migrations.py
@@ -425,7 +425,7 @@ git commit -m "feat(db): add admin identity session schema"
   - `AdminSessionRepository.revoke(session_id: UUID, now: datetime) -> None`
 - Consumes: Task 2 models and Task 1 domain values.
 
-- [ ] **Step 1: Write real repository tests first**
+- [x] **Step 1: Write real repository tests first**
 
 Cover attempt single use and expiry:
 
@@ -446,7 +446,7 @@ assert second is None
 
 Also assert expired attempts return `None` and are consumed, user/group match queries return only the requested tenant, `is_configured()` reflects row deletion, raw tokens are absent from persisted rows, active sessions touch at most once per five minutes, revoked/idle-expired/absolute-expired sessions return `None`, and a touch never moves absolute expiry.
 
-- [ ] **Step 2: Run the PostgreSQL gate and record RED**
+- [x] **Step 2: Run the PostgreSQL gate and record RED**
 
 Run:
 
@@ -456,7 +456,7 @@ task test:db:local
 
 Expected: collection fails because the three repository modules do not exist.
 
-- [ ] **Step 3: Implement async repositories with explicit records**
+- [x] **Step 3: Implement async repositories with explicit records**
 
 Use frozen dataclasses for values crossing the repository boundary:
 
@@ -502,7 +502,7 @@ Catch only SQLAlchemy/database errors at the boundary when a safe repository exc
 
 Each repository module defines the matching `Protocol` from the interface list next to its concrete implementation, so the service imports ports without depending on ORM model types.
 
-- [ ] **Step 4: Run repository GREEN and backend static checks**
+- [x] **Step 4: Run repository GREEN and backend static checks**
 
 Run:
 
@@ -515,7 +515,7 @@ task infra:down
 
 Expected: repository behavior passes against PostgreSQL and static checks remain green.
 
-- [ ] **Step 5: Commit Task 3**
+- [x] **Step 5: Commit Task 3**
 
 ```sh
 git add apps/control-plane/src/pullfrog_azure_api/repositories apps/control-plane/tests/integration/test_authentication_repositories.py
@@ -534,7 +534,7 @@ git commit -m "feat(backend): persist admin authentication state"
 - Produces: `EntraOidcProvider.begin(redirect_uri: str) -> OidcAuthorization` and `EntraOidcProvider.exchange(flow: dict[str, JsonValue], callback: Mapping[str, str]) -> ValidatedOidcClaims`.
 - Consumes: `OidcProvider`, `OidcAuthorization`, `ValidatedOidcClaims`, `OidcInvalidResponseError`, `OidcProviderUnavailableError`, and auth timeout settings from Task 1.
 
-- [ ] **Step 1: Write fake-MSAL adapter tests before installing MSAL**
+- [x] **Step 1: Write fake-MSAL adapter tests before installing MSAL**
 
 Inject a typed `MsalClientFactory` test seam and assert:
 
@@ -556,7 +556,7 @@ assert claims.user_object_id == str(USER_ID)
 
 Assert the adapter passes the stored flow unchanged to `acquire_token_by_auth_code_flow`, recognizes `hasgroups` and `_claim_names.groups` as overage, rejects malformed/non-string claims, maps fake-MSAL issuer/audience/state/nonce validation failures to an invalid-response exception, maps network/timeout failures to a provider-unavailable exception, and never places a fake secret marker in exception text or logs. A stalled fake sync client must be bounded by `oidc_operation_timeout_seconds`.
 
-- [ ] **Step 2: Run the focused provider test and record RED**
+- [x] **Step 2: Run the focused provider test and record RED**
 
 Run:
 
@@ -566,7 +566,7 @@ task test:backend -- apps/control-plane/tests/providers/test_entra_oidc.py -q
 
 Expected: collection fails because `providers.entra_oidc` and MSAL are absent.
 
-- [ ] **Step 3: Add MSAL and implement the production factory**
+- [x] **Step 3: Add MSAL and implement the production factory**
 
 Add `msal>=1.38,<2` to the control-plane dependencies and update `uv.lock` through `task bootstrap`. Build a new confidential client per operation so its in-memory token cache cannot become persistent:
 
@@ -584,7 +584,7 @@ msal.ConfidentialClientApplication(
 
 Call `initiate_auth_code_flow(scopes=[], redirect_uri=redirect_uri, response_mode="query")`; MSAL adds the reserved OpenID scopes while `offline_access` remains excluded. Call both MSAL operations with `asyncio.to_thread()` and wrap them in the configured overall timeout. Decode the returned dictionaries with runtime type guards; return only tenant ID, user object ID, optional bounded display name, group object-ID strings, and the overage boolean. Never return the MSAL token result itself.
 
-- [ ] **Step 4: Run provider GREEN and lock/static checks**
+- [x] **Step 4: Run provider GREEN and lock/static checks**
 
 Run:
 
@@ -597,7 +597,7 @@ task typecheck
 
 Expected: the lockfile contains MSAL, provider tests pass without live network access, and static checks pass.
 
-- [ ] **Step 5: Commit Task 4**
+- [x] **Step 5: Commit Task 4**
 
 ```sh
 git add apps/control-plane/pyproject.toml uv.lock apps/control-plane/src/pullfrog_azure_api/providers/entra_oidc.py apps/control-plane/tests/providers/test_entra_oidc.py
@@ -619,7 +619,7 @@ git commit -m "feat(backend): add entra oidc provider"
   - `LoginCompletion(return_to, session_token, csrf_token, admin)` and `AuthenticatedAdmin(session_id, display_name, idle_expires_at, absolute_expires_at, csrf_token_digest)`
 - Consumes: provider, policy, token helpers, repositories, lifetimes, environment identities, and callback URL from Tasks 1–4.
 
-- [ ] **Step 1: Write service login tests with in-memory fakes**
+- [x] **Step 1: Write service login tests with in-memory fakes**
 
 The fake stores record method arguments without logging them. Assert begin behavior:
 
@@ -636,7 +636,7 @@ Assert callback behavior for environment user, database user, environment group,
 
 Add negative cases for missing/expired/replayed attempt, wrong tenant, missing/malformed `oid`, malformed groups, group overage, and an unauthorized identity. Include email/UPN claims in the fake result and prove they do not change denial. For every failure assert the public `AuthenticationError.code` exactly and assert a fixture authorization code, provider body, secret, and object IDs are absent from `str(error)` and captured logs.
 
-- [ ] **Step 2: Run the focused login service test and record RED**
+- [x] **Step 2: Run the focused login service test and record RED**
 
 Run:
 
@@ -646,7 +646,7 @@ task test:backend -- apps/control-plane/tests/services/test_authentication_login
 
 Expected: collection fails because `AuthenticationService` does not exist.
 
-- [ ] **Step 3: Implement begin and callback orchestration**
+- [x] **Step 3: Implement begin and callback orchestration**
 
 The service constructor receives protocols rather than concrete repositories:
 
@@ -693,7 +693,7 @@ class AuthenticationService:
 
 `begin_login()` validates the return path before contacting MSAL, begins the provider flow, generates an attempt token, and persists its digest and flow. `complete_login()` rejects a missing cookie, atomically consumes the attempt before provider exchange, validates UUID claims and exact tenant, fails on overage before group matching, unions configured environment identities with database matches, selects the authorizer, creates session/CSRF values, and persists only their digests. Provider failures map to fixed safe service errors; unexpected programming errors are not swallowed.
 
-- [ ] **Step 4: Run login service GREEN and backend checks**
+- [x] **Step 4: Run login service GREEN and backend checks**
 
 Run:
 
@@ -705,7 +705,7 @@ task typecheck
 
 Expected: all login paths pass and business logic remains independent of FastAPI.
 
-- [ ] **Step 5: Commit Task 5**
+- [x] **Step 5: Commit Task 5**
 
 ```sh
 git add apps/control-plane/src/pullfrog_azure_api/services/authentication.py apps/control-plane/tests/services/conftest.py apps/control-plane/tests/services/test_authentication_login.py
@@ -726,7 +726,7 @@ git commit -m "feat(backend): establish admin sessions"
   - `AuthenticationService.logout(admin: AuthenticatedAdmin, now: datetime) -> None`
 - Consumes: active/touch/revoke repository methods from Task 3 and the exact authorizer recorded in Task 5.
 
-- [ ] **Step 1: Write session and CSRF tests before extending the service**
+- [x] **Step 1: Write session and CSRF tests before extending the service**
 
 Assert missing/unknown/revoked/idle-expired/absolute-expired tokens all produce `invalid_session`. Assert a current session returns only UI-safe identity data plus internal session/CSRF values, updates idle activity no more frequently than five minutes, and never extends absolute expiry.
 
@@ -745,7 +745,7 @@ assert sessions.revoked_session_ids == [SESSION_ID]
 
 Also assert deleting a database identity does not revoke an identical environment tuple, group membership cannot be re-evaluated inside an existing session, every cookie/header/digest CSRF mismatch returns `csrf_failed`, and logout records `revoked_at` once and is idempotent for the same session ID.
 
-- [ ] **Step 2: Run the focused session test and record RED**
+- [x] **Step 2: Run the focused session test and record RED**
 
 Run:
 
@@ -755,13 +755,13 @@ task test:backend -- apps/control-plane/tests/services/test_authentication_sessi
 
 Expected: tests fail because current-session, CSRF, and logout methods are absent.
 
-- [ ] **Step 3: Implement lifecycle methods with fixed failures**
+- [x] **Step 3: Implement lifecycle methods with fixed failures**
 
 `current_admin()` hashes the raw session token, resolves an active row through the repository, checks whether the recorded authorizer is still present in the environment/database union, revokes on allowlist removal, and returns an immutable `AuthenticatedAdmin`. It never accepts a user merely because a different configured identity now matches.
 
 `require_csrf()` rejects missing values, compares the cookie/header raw values in constant time, hashes the header, and compares the digest to the session record in constant time. `logout()` calls repository revocation by session ID and does not contact Entra.
 
-- [ ] **Step 4: Run service, repository, and static GREEN**
+- [x] **Step 4: Run service, repository, and static GREEN**
 
 Run:
 
@@ -775,7 +775,7 @@ task infra:down
 
 Expected: service unit tests and real repository lifecycle tests pass.
 
-- [ ] **Step 5: Commit Task 6**
+- [x] **Step 5: Commit Task 6**
 
 ```sh
 git add apps/control-plane/src/pullfrog_azure_api/services/authentication.py apps/control-plane/tests/services/test_authentication_session.py apps/control-plane/tests/integration/test_authentication_repositories.py
@@ -801,7 +801,7 @@ git commit -m "feat(backend): enforce admin session lifecycle"
 - Produces: the four approved routes, `get_authentication_service`, `require_admin`, `require_admin_mutation`, cookie helpers, `AdminSessionResponse`, and generated TypeScript paths.
 - Consumes: `AuthenticationService`, `EntraOidcProvider`, repositories, settings, and domain values from Tasks 1–6.
 
-- [ ] **Step 1: Write API tests with an overridden fake service**
+- [x] **Step 1: Write API tests with an overridden fake service**
 
 Cover these exact HTTP contracts:
 
@@ -825,7 +825,7 @@ assert callback.headers["location"] == "/settings"
 
 Assert production cookies include `Secure`, explicit loopback cookies do not, session cookie is `HttpOnly; Path=/; SameSite=lax` and host-only, CSRF cookie is readable, callback failures redirect only to a concrete enum URL such as `/?auth_error=identity_not_authorized`, unknown internal errors are not mapped to provider details, `/auth/me` returns display name and expiries only, unauthenticated `/auth/me` returns safe `401`, logout requires the header/cookie pair and returns `204`, and logout/invalid session clear both cookies. Reassert both health endpoints remain public. Verify the JSON mappings: `invalid_login_attempt -> 400`, `identity_not_authorized -> 403`, `group_claim_overage -> 403`, `invalid_session -> 401`, `csrf_failed -> 403`, and `identity_provider_unavailable -> 503`.
 
-- [ ] **Step 2: Run the focused API test and record RED**
+- [x] **Step 2: Run the focused API test and record RED**
 
 Run:
 
@@ -835,7 +835,7 @@ task test:backend -- apps/control-plane/tests/api/test_authentication.py -q
 
 Expected: requests return `404` because the authentication router does not exist.
 
-- [ ] **Step 3: Compose the service and add thin HTTP handlers**
+- [x] **Step 3: Compose the service and add thin HTTP handlers**
 
 Store `Settings`, `Database`, and the production `OidcProvider` on `AppContainer`. Construct repositories and a request-scoped `AuthenticationService` in `get_authentication_service()`.
 
@@ -854,7 +854,7 @@ class AdminSessionResponse(BaseModel):
 
 Cookie helpers must omit `Domain`, use the fixed names and paths from the spec, and clear with the identical path/security attributes used to set. Routers obtain `now` as timezone-aware UTC, delegate once to the service, and map results. Expected callback failures become fixed `303` redirects. Register one `AuthenticationError` handler for JSON endpoints using the tested status table; when the code is `invalid_session`, that handler clears both session cookies on its newly created response. A reusable dependency validates the session, and the mutation dependency additionally reads `X-Pullfrog-CSRF` plus the CSRF cookie.
 
-- [ ] **Step 4: Expand the OpenAPI characterization test and record drift**
+- [x] **Step 4: Expand the OpenAPI characterization test and record drift**
 
 Assert all four paths, response schema fields, `401`, `204`, and the CSRF header are present. Then run:
 
@@ -865,7 +865,7 @@ task api:check
 
 Expected: the characterization test passes against runtime OpenAPI; `task api:check` fails because committed artifacts have not been regenerated.
 
-- [ ] **Step 5: Generate the client and run API GREEN**
+- [x] **Step 5: Generate the client and run API GREEN**
 
 Run:
 
@@ -879,7 +879,7 @@ task typecheck
 
 Expected: API behavior, generated artifacts, type checks, and safe schemas pass.
 
-- [ ] **Step 6: Commit Task 7**
+- [x] **Step 6: Commit Task 7**
 
 ```sh
 git add apps/control-plane/src/pullfrog_azure_api/api apps/control-plane/src/pullfrog_azure_api/app.py apps/control-plane/src/pullfrog_azure_api/container.py apps/control-plane/src/pullfrog_azure_api/schemas/authentication.py apps/control-plane/tests/api apps/control-plane/tests/contracts/test_openapi.py packages/api-client/openapi.json packages/api-client/src/schema.d.ts
@@ -907,7 +907,7 @@ git commit -m "feat(backend): expose admin authentication api"
 - Produces: `useAdminSession()`, `useLogout()`, `parseAuthError()`, `SignInPanel`, `AuthenticationErrorPanel`, and `AdminSessionPanel`.
 - Consumes: the generated API client from Task 7 and existing `SystemStatus`/design tokens.
 
-- [ ] **Step 1: Write page tests for every auth state**
+- [x] **Step 1: Write page tests for every auth state**
 
 Mock hooks at their module boundaries and assert:
 
@@ -925,7 +925,7 @@ it("shows sign in instead of the overview for an anonymous browser", () => {
 
 Also cover loading, session-query failure, authenticated overview, optional display name, fixed callback error copy, unknown callback value mapping to generic copy without reflection, logout pending state, and a logout click invoking the mutation. Add hook tests proving `/auth/me` maps `401` to `null`, other failures throw a fixed error, the CSRF cookie is decoded safely, and logout sends exactly `X-Pullfrog-CSRF` before invalidating `['auth', 'session']`.
 
-- [ ] **Step 2: Run the focused frontend tests and record RED**
+- [x] **Step 2: Run the focused frontend tests and record RED**
 
 Run:
 
@@ -935,7 +935,7 @@ task test:frontend -- src/pages/OverviewPage.test.tsx src/api/useAdminSession.te
 
 Expected: module resolution fails because the hooks/components do not exist.
 
-- [ ] **Step 3: Implement typed hooks and presentational components**
+- [x] **Step 3: Implement typed hooks and presentational components**
 
 Move shared client construction to `api/client.ts`. The session hook uses the generated route and explicit status handling:
 
@@ -958,7 +958,7 @@ export function useAdminSession() {
 
 The logout hook reads only `pullfrog_admin_csrf`, sends the generated POST with the fixed header, treats a missing cookie as a fixed local failure, and invalidates the session query on success. `parseAuthError()` returns an allowlisted union or `"unknown"`; components map that union to fixed copy. Keep `OverviewPage` as state selection only and move the liveness hook into a child rendered exclusively for authenticated users. Extend existing tokens/classes without introducing a new design direction.
 
-- [ ] **Step 4: Run frontend GREEN, typecheck, build, and full check**
+- [x] **Step 4: Run frontend GREEN, typecheck, build, and full check**
 
 Run:
 
@@ -971,7 +971,7 @@ task check
 
 Expected: focused UI/hook tests, strict TypeScript, production build, and repository check pass.
 
-- [ ] **Step 5: Commit Task 8**
+- [x] **Step 5: Commit Task 8**
 
 ```sh
 git add apps/admin/src
@@ -991,7 +991,7 @@ git commit -m "feat(frontend): protect admin overview"
 - Produces: operator configuration guidance, honest live-Entra smoke evidence, and a checked implementation checklist.
 - Consumes: all behavior and settings delivered by Tasks 1–8.
 
-- [ ] **Step 1: Add non-secret deployment examples and manual smoke instructions**
+- [x] **Step 1: Add non-secret deployment examples and manual smoke instructions**
 
 `.env.example` lists every required variable with empty credential/object-ID values and the explicit loopback development settings:
 
@@ -1010,7 +1010,7 @@ The smoke document must contain exact registration redirect URI, direct-user log
 
 Update README requirements/configuration and link the approved spec, this plan, and smoke procedure. Update `CONTEXT.md` so admin identity/session foundation is current while secret storage, Azure DevOps connections, and models remain deferred.
 
-- [ ] **Step 2: Run documentation/scope audits**
+- [x] **Step 2: Run documentation/scope audits**
 
 Run:
 
@@ -1021,7 +1021,7 @@ rg -n -e "\x54\x4f\x44\x4f" -e "\x54\x42\x44" -e "\x46\x49\x58\x4d\x45" -e "\x50
 
 Expected: `git diff --check` is clean and the prohibited-marker scan returns no matches introduced by this phase.
 
-- [ ] **Step 3: Run real database and complete local evidence gates**
+- [x] **Step 3: Run real database and complete local evidence gates**
 
 Run:
 
@@ -1036,7 +1036,7 @@ task infra:down
 
 Expected: locked installs, migration/repository integration tests, generated API artifacts, all repository checks, and the full CI contract pass; PostgreSQL is stopped without deleting volumes.
 
-- [ ] **Step 4: Perform final security and generated-artifact audits**
+- [x] **Step 4: Perform final security and generated-artifact audits**
 
 Verify:
 
@@ -1056,7 +1056,7 @@ Inspect the complete branch diff from `origin/main` and confirm:
 - no phase-2 secret, Azure DevOps, model, Graph, or Boards behavior entered the diff;
 - generated build output is ignored and no unrelated file is staged.
 
-- [ ] **Step 5: Mark completed plan checkboxes and commit Task 9**
+- [x] **Step 5: Mark completed plan checkboxes and commit Task 9**
 
 Update this plan's completed checkboxes only after their commands have produced the stated evidence, then run `task check` once more after the documentation edit.
 
