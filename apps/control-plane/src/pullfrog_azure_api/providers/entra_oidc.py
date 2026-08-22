@@ -1,5 +1,7 @@
 import asyncio
+import hashlib
 import math
+import time
 from collections.abc import Callable, Mapping
 from typing import Protocol, TypeGuard
 
@@ -135,6 +137,39 @@ def has_group_overage(claims: Mapping[str, object]) -> bool:
     return hasgroups_overage or claim_names_overage
 
 
+def validate_id_token_claims(
+    claims: Mapping[str, object],
+    *,
+    expected_issuer: str,
+    expected_audience: str,
+    expected_nonce: str,
+    now: int,
+) -> None:
+    """Enforce claims that MSAL 1.37 does not consistently reject."""
+
+    audience = claims.get("aud")
+    audience_matches = audience == expected_audience or (
+        isinstance(audience, list)
+        and all(isinstance(item, str) for item in audience)
+        and expected_audience in audience
+    )
+    expires_at = claims.get("exp")
+    not_before = claims.get("nbf")
+    expected_nonce_hash = hashlib.sha256(expected_nonce.encode("ascii")).hexdigest()
+    if (
+        claims.get("iss") != expected_issuer
+        or not audience_matches
+        or isinstance(expires_at, bool)
+        or not isinstance(expires_at, int)
+        or expires_at < now - 120
+        or isinstance(not_before, bool)
+        or (not_before is not None and not isinstance(not_before, int))
+        or (isinstance(not_before, int) and not_before > now + 120)
+        or claims.get("nonce") != expected_nonce_hash
+    ):
+        raise OidcInvalidResponseError("Invalid identity provider response")
+
+
 class EntraOidcProvider:
     """Run synchronous MSAL auth-code operations behind a bounded async boundary."""
 
@@ -148,6 +183,8 @@ class EntraOidcProvider:
             client_factory if client_factory is not None else ConfidentialClientFactory(settings)
         )
         self._operation_timeout_seconds = settings.oidc_operation_timeout_seconds
+        self._expected_issuer = f"https://login.microsoftonline.com/{settings.entra_tenant_id}/v2.0"
+        self._expected_audience = str(settings.entra_client_id)
 
     async def _run(self, operation: Callable[[], object]) -> object:
         try:
@@ -187,16 +224,37 @@ class EntraOidcProvider:
     ) -> ValidatedOidcClaims:
         """Redeem one stored flow and retain only bounded, runtime-checked ID claims."""
 
+        state = flow.get("state")
+        nonce = flow.get("nonce")
+        if (
+            not isinstance(state, str)
+            or not state
+            or callback.get("state") != state
+            or not isinstance(nonce, str)
+            or not nonce
+        ):
+            raise OidcInvalidResponseError("Invalid identity provider response")
+
         def acquire() -> object:
             client = self._client_factory()
             return client.acquire_token_by_auth_code_flow(flow, callback)
 
-        result = await self._run(acquire)
+        try:
+            result = await self._run(acquire)
+        except RuntimeError:
+            raise OidcInvalidResponseError("Invalid identity provider response") from None
         if not isinstance(result, dict) or "error" in result:
             raise OidcInvalidResponseError("Invalid identity provider response")
         claims = result.get("id_token_claims")
         if not isinstance(claims, dict):
             raise OidcInvalidResponseError("Invalid identity provider response")
+        validate_id_token_claims(
+            claims,
+            expected_issuer=self._expected_issuer,
+            expected_audience=self._expected_audience,
+            expected_nonce=nonce,
+            now=int(time.time()),
+        )
 
         display_name = optional_string(claims, "name")
         return ValidatedOidcClaims(

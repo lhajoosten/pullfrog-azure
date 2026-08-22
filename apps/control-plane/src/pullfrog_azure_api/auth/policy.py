@@ -16,7 +16,11 @@ def validate_return_to(return_to: str | None) -> str:
         return "/"
 
     decoded_return_to = unquote(return_to)
-    if _has_unsafe_characters(return_to) or _has_unsafe_characters(decoded_return_to):
+    if (
+        len(decoded_return_to) > 2048
+        or _has_unsafe_characters(return_to)
+        or _has_unsafe_characters(decoded_return_to)
+    ):
         raise AuthenticationError(AuthErrorCode.INVALID_LOGIN_ATTEMPT)
 
     parsed = urlsplit(decoded_return_to)

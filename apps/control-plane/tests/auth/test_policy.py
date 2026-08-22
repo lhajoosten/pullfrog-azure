@@ -26,6 +26,15 @@ def test_validate_return_to_defaults_a_missing_target_to_the_application_root() 
     assert validate_return_to(None) == "/"
 
 
+def test_validate_return_to_enforces_the_persistence_limit() -> None:
+    assert validate_return_to("/" + "a" * 2047) == "/" + "a" * 2047
+
+    with pytest.raises(AuthenticationError) as error:
+        validate_return_to("/" + "a" * 2048)
+
+    assert error.value.code is AuthErrorCode.INVALID_LOGIN_ATTEMPT
+
+
 @pytest.mark.parametrize(
     "return_to",
     (

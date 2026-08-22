@@ -165,19 +165,39 @@ class AuthenticationService:
         if tenant_id != self._tenant_id:
             raise AuthenticationError(AuthErrorCode.IDENTITY_NOT_AUTHORIZED)
         user_object_id = require_claim_uuid(claims.user_object_id)
-        group_object_ids = require_group_ids(claims)
-
-        database_identities = await self._identities.find_matches(
-            tenant_id,
-            user_object_id,
-            group_object_ids,
-        )
         authorizer = select_authorizer(
             tenant_id,
             user_object_id,
-            group_object_ids,
-            self._configured_identities | database_identities,
+            frozenset(),
+            self._configured_identities,
         )
+        if claims.group_overage and authorizer is None:
+            database_identities = await self._identities.find_matches(
+                tenant_id,
+                user_object_id,
+                frozenset(),
+            )
+            authorizer = select_authorizer(
+                tenant_id,
+                user_object_id,
+                frozenset(),
+                database_identities,
+            )
+        elif not claims.group_overage:
+            group_object_ids = require_group_ids(claims)
+            database_identities = await self._identities.find_matches(
+                tenant_id,
+                user_object_id,
+                group_object_ids,
+            )
+            authorizer = select_authorizer(
+                tenant_id,
+                user_object_id,
+                group_object_ids,
+                self._configured_identities | database_identities,
+            )
+        if claims.group_overage and authorizer is None:
+            raise AuthenticationError(AuthErrorCode.GROUP_CLAIM_OVERAGE)
         if authorizer is None:
             raise AuthenticationError(AuthErrorCode.IDENTITY_NOT_AUTHORIZED)
 

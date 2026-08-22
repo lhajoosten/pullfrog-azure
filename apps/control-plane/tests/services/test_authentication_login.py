@@ -295,6 +295,7 @@ async def test_complete_login_maps_expected_failures_without_sensitive_output(
         case_claims = claims(group_ids=("not-a-uuid",))
     if case == "group_overage":
         case_claims = claims(group_overage=True)
+        configured = frozenset({BREAK_GLASS_IDENTITY})
     if case == "unauthorized":
         configured = frozenset({BREAK_GLASS_IDENTITY})
 
@@ -320,7 +321,30 @@ async def test_complete_login_maps_expected_failures_without_sensitive_output(
     assert_safe_error(error.value, expected_code, caplog.text)
     assert harness.sessions.created is None
     if case == "group_overage":
-        assert harness.identities.find_calls == []
+        assert harness.identities.find_calls == [(TENANT_ID, USER_ID, frozenset())]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("source", ["environment", "database"])
+async def test_group_overage_preserves_direct_user_authorization(source: str) -> None:
+    environment = frozenset({USER_IDENTITY})
+    database = frozenset[AdminIdentityRef]()
+    if source == "database":
+        environment = frozenset({BREAK_GLASS_IDENTITY})
+        database = frozenset({USER_IDENTITY})
+    harness = build_harness(
+        claims=claims(group_overage=True),
+        configured_identities=environment,
+        database_identities=database,
+    )
+    attempt_token = await begin_attempt(harness)
+
+    await harness.service.complete_login(attempt_token, CALLBACK, NOW)
+
+    assert harness.sessions.created is not None
+    assert harness.sessions.created.authorizer == USER_IDENTITY
+    expected_calls = [] if source == "environment" else [(TENANT_ID, USER_ID, frozenset())]
+    assert harness.identities.find_calls == expected_calls
 
 
 @pytest.mark.asyncio

@@ -19,7 +19,7 @@ from pullfrog_azure_api.repositories.admin_sessions import (
     NewAdminSession,
 )
 from pullfrog_azure_api.repositories.login_attempts import LoginAttemptRepository
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 
 NOW = datetime(2026, 8, 21, 12, 0, tzinfo=UTC)
 TENANT_ID = UUID("11111111-1111-1111-1111-111111111111")
@@ -136,6 +136,44 @@ async def test_expired_login_attempt_is_consumed_without_returning_record(
 
     async with database.sessions() as session:
         assert await session.scalar(select(OidcLoginAttempt.id)) is None
+
+
+@pytest.mark.integration
+async def test_login_attempt_creation_deletes_a_bounded_expired_batch(
+    database: Database,
+) -> None:
+    async with database.sessions() as session:
+        session.add_all(
+            OidcLoginAttempt(
+                token_digest=digest_token(f"expired-attempt-{index}"),
+                flow={"state": f"expired-{index}"},
+                return_to="/",
+                created_at=NOW - timedelta(minutes=11),
+                expires_at=NOW - timedelta(minutes=1),
+            )
+            for index in range(101)
+        )
+        await session.commit()
+
+    attempts = LoginAttemptRepository(database.sessions)
+    await attempts.create(
+        token_digest=ATTEMPT_DIGEST,
+        flow={"state": "active"},
+        return_to="/settings",
+        created_at=NOW,
+        expires_at=NOW + timedelta(minutes=10),
+    )
+
+    async with database.sessions() as session:
+        expired_count = await session.scalar(
+            select(func.count())
+            .select_from(OidcLoginAttempt)
+            .where(OidcLoginAttempt.expires_at <= NOW)
+        )
+        total_count = await session.scalar(select(func.count()).select_from(OidcLoginAttempt))
+
+    assert expired_count == 1
+    assert total_count == 2
 
 
 @pytest.mark.integration

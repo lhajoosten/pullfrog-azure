@@ -1,8 +1,14 @@
+import hashlib
 import time
 from collections.abc import Mapping
 from uuid import UUID
 
 import pytest
+from msal.oauth2cli.oidc import (  # type: ignore[import-untyped]
+    IdTokenAudienceError,
+    IdTokenIssuerError,
+    IdTokenNonceError,
+)
 from pullfrog_azure_api.auth.domain import (
     JsonValue,
     OidcInvalidResponseError,
@@ -18,6 +24,26 @@ GROUP_ID = UUID("44444444-4444-4444-4444-444444444444")
 SECRET_MARKER = "provider-secret-marker-not-a-credential"
 REDIRECT_URI = "https://pullfrog.example/api/v1/auth/callback"
 UNSET = object()
+FLOW: dict[str, JsonValue] = {
+    "state": "state-value",
+    "nonce": "nonce-value",
+}
+
+
+def valid_id_token_claims(**overrides: object) -> dict[str, object]:
+    claims: dict[str, object] = {
+        "iss": f"https://login.microsoftonline.com/{TENANT_ID}/v2.0",
+        "aud": str(CLIENT_ID),
+        "exp": 4_102_444_800,
+        "nbf": 0,
+        "nonce": hashlib.sha256(b"nonce-value").hexdigest(),
+        "tid": str(TENANT_ID),
+        "oid": str(USER_ID),
+        "name": "Ada Admin",
+        "groups": [str(GROUP_ID)],
+    }
+    claims.update(overrides)
+    return claims
 
 
 def settings(**overrides: object) -> Settings:
@@ -53,14 +79,7 @@ class FakeMsalClient:
             else begin_result
         )
         self.exchange_result = (
-            {
-                "id_token_claims": {
-                    "tid": str(TENANT_ID),
-                    "oid": str(USER_ID),
-                    "name": "Ada Admin",
-                    "groups": [str(GROUP_ID)],
-                }
-            }
+            {"id_token_claims": valid_id_token_claims()}
             if exchange_result is UNSET
             else exchange_result
         )
@@ -179,16 +198,13 @@ async def test_default_factory_builds_one_hardened_confidential_client_per_opera
     ],
 )
 async def test_exchange_recognizes_group_overage(overage_claim: dict[str, object]) -> None:
-    claims: dict[str, object] = {
-        "tid": str(TENANT_ID),
-        "oid": str(USER_ID),
-        **overage_claim,
-    }
+    claims = valid_id_token_claims(**overage_claim)
+    claims.pop("groups")
     client = FakeMsalClient(exchange_result={"id_token_claims": claims})
     provider = EntraOidcProvider(settings(), client_factory=FakeMsalClientFactory(client))
 
     result = await provider.exchange(
-        {"state": "state-value"},
+        FLOW,
         {"code": "authorization-code", "state": "state-value"},
     )
 
@@ -198,11 +214,14 @@ async def test_exchange_recognizes_group_overage(overage_claim: dict[str, object
 
 @pytest.mark.asyncio
 async def test_exchange_allows_missing_optional_identity_claims_for_service_validation() -> None:
-    client = FakeMsalClient(exchange_result={"id_token_claims": {}})
+    identity_claims = valid_id_token_claims()
+    for claim_name in ("tid", "oid", "name", "groups"):
+        identity_claims.pop(claim_name)
+    client = FakeMsalClient(exchange_result={"id_token_claims": identity_claims})
     provider = EntraOidcProvider(settings(), client_factory=FakeMsalClientFactory(client))
 
     result = await provider.exchange(
-        {"state": "state-value"},
+        FLOW,
         {"code": "authorization-code", "state": "state-value"},
     )
 
@@ -216,18 +235,12 @@ async def test_exchange_allows_missing_optional_identity_claims_for_service_vali
 @pytest.mark.asyncio
 async def test_exchange_bounds_display_name() -> None:
     client = FakeMsalClient(
-        exchange_result={
-            "id_token_claims": {
-                "tid": str(TENANT_ID),
-                "oid": str(USER_ID),
-                "name": "a" * 300,
-            }
-        }
+        exchange_result={"id_token_claims": valid_id_token_claims(name="a" * 300)}
     )
     provider = EntraOidcProvider(settings(), client_factory=FakeMsalClientFactory(client))
 
     result = await provider.exchange(
-        {"state": "state-value"},
+        FLOW,
         {"code": "authorization-code", "state": "state-value"},
     )
 
@@ -255,14 +268,70 @@ async def test_exchange_bounds_display_name() -> None:
     ],
 )
 async def test_exchange_rejects_malformed_claims(claims: dict[str, object]) -> None:
-    client = FakeMsalClient(exchange_result={"id_token_claims": claims})
+    client = FakeMsalClient(exchange_result={"id_token_claims": valid_id_token_claims(**claims)})
     provider = EntraOidcProvider(settings(), client_factory=FakeMsalClientFactory(client))
 
     with pytest.raises(OidcInvalidResponseError):
         await provider.exchange(
-            {"state": "state-value"},
+            FLOW,
             {"code": "authorization-code", "state": "state-value"},
         )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "claim_overrides",
+    [
+        {"iss": "https://login.microsoftonline.com/wrong/v2.0"},
+        {"aud": "wrong-client"},
+        {"exp": 1_999_999_879},
+        {"nbf": 2_000_000_121},
+        {"nonce": "wrong-nonce"},
+    ],
+)
+async def test_exchange_enforces_security_claims_not_rejected_by_msal(
+    claim_overrides: dict[str, object],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "pullfrog_azure_api.providers.entra_oidc.time.time",
+        lambda: 2_000_000_000,
+    )
+    client = FakeMsalClient(
+        exchange_result={"id_token_claims": valid_id_token_claims(**claim_overrides)}
+    )
+    provider = EntraOidcProvider(settings(), client_factory=FakeMsalClientFactory(client))
+
+    with pytest.raises(OidcInvalidResponseError):
+        await provider.exchange(
+            FLOW,
+            {"code": "authorization-code", "state": "state-value"},
+        )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("flow", "callback"),
+    [
+        ({"nonce": "nonce-value"}, {"code": "authorization-code"}),
+        (FLOW, {"code": "authorization-code", "state": "wrong-state"}),
+        (
+            {"state": "state-value"},
+            {"code": "authorization-code", "state": "state-value"},
+        ),
+    ],
+)
+async def test_exchange_rejects_invalid_flow_binding_before_msal(
+    flow: dict[str, JsonValue],
+    callback: Mapping[str, str],
+) -> None:
+    client = FakeMsalClient()
+    provider = EntraOidcProvider(settings(), client_factory=FakeMsalClientFactory(client))
+
+    with pytest.raises(OidcInvalidResponseError):
+        await provider.exchange(flow, callback)
+
+    assert client.exchange_calls == []
 
 
 @pytest.mark.asyncio
@@ -297,7 +366,7 @@ async def test_exchange_rejects_non_claim_results(exchange_result: object) -> No
 
     with pytest.raises(OidcInvalidResponseError):
         await provider.exchange(
-            {"state": "state-value"},
+            FLOW,
             {"code": "authorization-code", "state": "state-value"},
         )
 
@@ -306,14 +375,15 @@ async def test_exchange_rejects_non_claim_results(exchange_result: object) -> No
 @pytest.mark.parametrize(
     "validation_failure",
     [
-        ValueError(f"invalid issuer {SECRET_MARKER}"),
-        ValueError(f"invalid audience {SECRET_MARKER}"),
+        IdTokenIssuerError(f"invalid issuer {SECRET_MARKER}", 0, valid_id_token_claims()),
+        IdTokenAudienceError(f"invalid audience {SECRET_MARKER}", 0, valid_id_token_claims()),
         ValueError(f"invalid state {SECRET_MARKER}"),
-        ValueError(f"invalid nonce {SECRET_MARKER}"),
+        IdTokenNonceError(f"invalid nonce {SECRET_MARKER}", 0, valid_id_token_claims()),
+        RuntimeError(f"invalid nonce {SECRET_MARKER}"),
     ],
 )
 async def test_msal_validation_failure_is_safe_and_invalid(
-    validation_failure: ValueError,
+    validation_failure: BaseException,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     client = FakeMsalClient(exchange_error=validation_failure)
@@ -321,7 +391,7 @@ async def test_msal_validation_failure_is_safe_and_invalid(
 
     with pytest.raises(OidcInvalidResponseError) as error:
         await provider.exchange(
-            {"state": "state-value"},
+            FLOW,
             {"code": "authorization-code", "state": "state-value"},
         )
 
@@ -341,7 +411,7 @@ async def test_msal_error_result_is_safe_and_invalid(caplog: pytest.LogCaptureFi
 
     with pytest.raises(OidcInvalidResponseError) as error:
         await provider.exchange(
-            {"state": "state-value"},
+            FLOW,
             {"code": "authorization-code", "state": "state-value"},
         )
 

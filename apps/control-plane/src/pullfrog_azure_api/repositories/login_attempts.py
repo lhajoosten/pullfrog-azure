@@ -4,7 +4,7 @@ from typing import Protocol
 
 from pullfrog_azure_api.auth.domain import JsonValue
 from pullfrog_azure_api.models.oidc_login_attempt import OidcLoginAttempt
-from sqlalchemy import delete
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 
@@ -50,9 +50,19 @@ class LoginAttemptRepository:
         created_at: datetime,
         expires_at: datetime,
     ) -> None:
-        """Persist one bounded login attempt without accepting a raw browser token."""
+        """Persist an attempt while bounding opportunistic expired-row cleanup."""
 
         async with self._sessions() as session:
+            expired_ids = (
+                select(OidcLoginAttempt.id)
+                .where(OidcLoginAttempt.expires_at <= created_at)
+                .order_by(OidcLoginAttempt.expires_at)
+                .limit(100)
+                .with_for_update(skip_locked=True)
+            )
+            await session.execute(
+                delete(OidcLoginAttempt).where(OidcLoginAttempt.id.in_(expired_ids))
+            )
             session.add(
                 OidcLoginAttempt(
                     token_digest=token_digest,
