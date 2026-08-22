@@ -6,6 +6,10 @@
   --border: #d7deea;
   --positive: #178447;
   --warning: #b54708;
+  --danger: #b42318;
+  --action: #175cd3;
+  --action-hover: #1849a9;
+  --text-muted: #475467;
   --space-2: 0.5rem;
   --space-4: 1rem;
   --radius: 0.5rem;
@@ -30,4 +34,58 @@
 
 .system-status[data-state="healthy"] .system-status__indicator {
   background: var(--positive);
+}
+
+.overview-stack {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.admin-panel,
+.admin-session,
+.authentication-error {
+  padding: var(--space-4);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.admin-panel h2,
+.admin-panel p {
+  margin-top: 0;
+}
+
+.admin-panel p {
+  color: var(--text-muted);
+}
+
+.admin-action {
+  display: inline-block;
+  padding: var(--space-2) var(--space-4);
+  color: var(--surface);
+  text-decoration: none;
+  background: var(--action);
+  border-radius: var(--radius);
+}
+
+.admin-action:hover {
+  background: var(--action-hover);
+}
+
+.admin-session {
+  display: flex;
+  gap: var(--space-4);
+  align-items: center;
+  justify-content: space-between;
+}
+
+.admin-session button {
+  padding: var(--space-2) var(--space-4);
+}
+
+.authentication-error {
+  display: grid;
+  gap: var(--space-2);
+  color: var(--danger);
+  border-color: var(--danger);
 }
