@@ -100,6 +100,11 @@ tasks:
     desc: Run non-integration backend tests, optionally narrowed with CLI_ARGS.
     env:
       PULLFROG_DATABASE_URL: '{{default "postgresql+asyncpg://pullfrog:pullfrog@127.0.0.1:55432/pullfrog" .PULLFROG_DATABASE_URL}}'
+      PULLFROG_ENTRA_TENANT_ID: "00000000-0000-0000-0000-000000000001"
+      PULLFROG_ENTRA_CLIENT_ID: "00000000-0000-0000-0000-000000000002"
+      PULLFROG_ENTRA_CLIENT_SECRET: "test-client-secret-not-a-credential"
+      PULLFROG_PUBLIC_BASE_URL: "https://pullfrog.example"
+      PULLFROG_ADMIN_USER_OBJECT_IDS: "00000000-0000-0000-0000-000000000003"
     cmds:
       - uv run pytest -m "not integration" {{.CLI_ARGS}}
 
@@ -137,6 +142,11 @@ tasks:
     desc: Export OpenAPI and regenerate TypeScript API types.
     env:
       PULLFROG_DATABASE_URL: '{{default "postgresql+asyncpg://pullfrog:pullfrog@127.0.0.1:55432/pullfrog" .PULLFROG_DATABASE_URL}}'
+      PULLFROG_ENTRA_TENANT_ID: "00000000-0000-0000-0000-000000000001"
+      PULLFROG_ENTRA_CLIENT_ID: "00000000-0000-0000-0000-000000000002"
+      PULLFROG_ENTRA_CLIENT_SECRET: "test-client-secret-not-a-credential"
+      PULLFROG_PUBLIC_BASE_URL: "https://pullfrog.example"
+      PULLFROG_ADMIN_USER_OBJECT_IDS: "00000000-0000-0000-0000-000000000003"
     cmds:
       - uv run python apps/control-plane/scripts/export_openapi.py
       - pnpm --filter @pullfrog-azure/api-client generate

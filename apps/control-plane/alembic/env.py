@@ -2,9 +2,12 @@ import asyncio
 from logging.config import fileConfig
 
 from alembic import context
-from pullfrog_azure_api.config import Settings
+from pullfrog_azure_api.config import DatabaseSettings
 from pullfrog_azure_api.db.base import Base
+from pullfrog_azure_api.models.admin_identity import AdminIdentity  # noqa: F401
+from pullfrog_azure_api.models.admin_session import AdminSession  # noqa: F401
 from pullfrog_azure_api.models.deployment_settings import DeploymentSettings  # noqa: F401
+from pullfrog_azure_api.models.oidc_login_attempt import OidcLoginAttempt  # noqa: F401
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
@@ -18,7 +21,7 @@ target_metadata = Base.metadata
 
 def run_migrations_offline() -> None:
     context.configure(
-        url=str(Settings().database_url),
+        url=str(DatabaseSettings().database_url),
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
@@ -35,7 +38,7 @@ def run_sync_migrations(connection: Connection) -> None:
 
 async def run_async_migrations() -> None:
     configuration = config.get_section(config.config_ini_section, {})
-    configuration["sqlalchemy.url"] = str(Settings().database_url)
+    configuration["sqlalchemy.url"] = str(DatabaseSettings().database_url)
     connectable = async_engine_from_config(
         configuration,
         prefix="sqlalchemy.",
