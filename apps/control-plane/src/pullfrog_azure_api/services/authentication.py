@@ -13,7 +13,7 @@ from pullfrog_azure_api.auth.domain import (
     ValidatedOidcClaims,
 )
 from pullfrog_azure_api.auth.policy import select_authorizer, validate_return_to
-from pullfrog_azure_api.auth.tokens import digest_token, new_opaque_token
+from pullfrog_azure_api.auth.tokens import csrf_matches, digest_token, new_opaque_token
 from pullfrog_azure_api.repositories.admin_identities import AdminIdentityStore
 from pullfrog_azure_api.repositories.admin_sessions import (
     AdminSessionRecord,
@@ -204,3 +204,47 @@ class AuthenticationService:
             csrf_token=csrf_token,
             admin=authenticated_admin(session),
         )
+
+    async def current_admin(
+        self,
+        session_token: str | None,
+        now: datetime,
+    ) -> AuthenticatedAdmin:
+        """Resolve an active session and retain its exact recorded authorization tuple."""
+
+        if not session_token:
+            raise AuthenticationError(AuthErrorCode.INVALID_SESSION)
+
+        session = await self._sessions.get_active_and_touch(
+            digest_token(session_token),
+            now,
+            self._idle_lifetime,
+            self._touch_interval,
+        )
+        if session is None:
+            raise AuthenticationError(AuthErrorCode.INVALID_SESSION)
+
+        is_authorized = session.authorizer in self._configured_identities
+        if not is_authorized:
+            is_authorized = await self._identities.is_configured(session.authorizer)
+        if not is_authorized:
+            await self._sessions.revoke(session.session_id, now)
+            raise AuthenticationError(AuthErrorCode.INVALID_SESSION)
+
+        return authenticated_admin(session)
+
+    def require_csrf(
+        self,
+        admin: AuthenticatedAdmin,
+        cookie_token: str | None,
+        header_token: str | None,
+    ) -> None:
+        """Require matching browser values whose digest belongs to the active session."""
+
+        if not csrf_matches(cookie_token, header_token, admin.csrf_token_digest):
+            raise AuthenticationError(AuthErrorCode.CSRF_FAILED)
+
+    async def logout(self, admin: AuthenticatedAdmin, now: datetime) -> None:
+        """Revoke one server-side session without contacting the identity provider."""
+
+        await self._sessions.revoke(admin.session_id, now)

@@ -139,7 +139,14 @@ class AdminSessionRepository:
     async def revoke(self, session_id: UUID, now: datetime) -> None:
         """Mark the selected session revoked without exposing whether it existed."""
 
-        statement = update(AdminSession).where(AdminSession.id == session_id).values(revoked_at=now)
+        statement = (
+            update(AdminSession)
+            .where(
+                AdminSession.id == session_id,
+                AdminSession.revoked_at.is_(None),
+            )
+            .values(revoked_at=now)
+        )
         async with self._sessions() as database_session:
             await database_session.execute(statement)
             await database_session.commit()

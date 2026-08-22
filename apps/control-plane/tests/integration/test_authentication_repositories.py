@@ -286,7 +286,10 @@ async def test_active_session_touch_is_rate_limited_and_bounded_by_absolute_expi
 
 
 @pytest.mark.integration
-@pytest.mark.parametrize("inactive_state", ["revoked", "idle_expired", "absolute_expired"])
+@pytest.mark.parametrize(
+    "inactive_state",
+    ["unknown", "revoked", "idle_expired", "absolute_expired"],
+)
 async def test_inactive_session_is_not_returned(
     database: Database,
     inactive_state: str,
@@ -299,15 +302,16 @@ async def test_inactive_session_is_not_returned(
         idle_expiry = NOW
     if inactive_state == "absolute_expired":
         absolute_expiry = NOW
-    created = await sessions.create(
-        new_session(
-            token_digest=digest,
-            idle_expires_at=idle_expiry,
-            absolute_expires_at=absolute_expiry,
+    if inactive_state != "unknown":
+        created = await sessions.create(
+            new_session(
+                token_digest=digest,
+                idle_expires_at=idle_expiry,
+                absolute_expires_at=absolute_expiry,
+            )
         )
-    )
-    if inactive_state == "revoked":
-        await sessions.revoke(created.session_id, NOW)
+        if inactive_state == "revoked":
+            await sessions.revoke(created.session_id, NOW)
 
     result = await sessions.get_active_and_touch(
         digest,
@@ -346,3 +350,20 @@ async def test_revoke_invalidates_only_the_selected_session(database: Database) 
         )
         is not None
     )
+
+
+@pytest.mark.integration
+async def test_revoke_preserves_the_first_revocation_timestamp(database: Database) -> None:
+    sessions = AdminSessionRepository(database.sessions)
+    created = await sessions.create(new_session())
+    first_revocation = NOW + timedelta(minutes=1)
+
+    await sessions.revoke(created.session_id, first_revocation)
+    await sessions.revoke(created.session_id, NOW + timedelta(minutes=2))
+
+    async with database.sessions() as database_session:
+        revoked_at = await database_session.scalar(
+            select(AdminSession.revoked_at).where(AdminSession.id == created.session_id)
+        )
+
+    assert revoked_at == first_revocation
